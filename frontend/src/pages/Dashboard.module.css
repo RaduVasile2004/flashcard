@@ -11,6 +11,45 @@
   color: var(--text-color);
 }
 
+.searchRow {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.searchInput {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 1rem;
+  font-family: var(--font-sans);
+  border: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  border-radius: 8px;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.clearSearchButton {
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.clearSearchButton:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
 .sectionTitle {
   font-size: 1.8rem;
   font-weight: 600;

@@ -9,41 +9,64 @@ const Dashboard = () => {
   const [standardDecks, setStandardDecks] = useState([]);
   const [newDeckTitle, setNewDeckTitle] = useState('');
   const [newDeckDescription, setNewDeckDescription] = useState('');
-  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+
   // Use state to track auth status, checked on component mount.
   const [isAuthenticated] = useState(!!localStorage.getItem('token'));
 
-  useEffect(() => {
-    const fetchDecks = async () => {
-      try {
-        // 1. Always fetch standard decks (this is a public route)
-        const standardDecksRes = await axios.get('http://localhost:5000/api/decks/standard');
-        setStandardDecks(Array.isArray(standardDecksRes.data) ? standardDecksRes.data : []);
+  const fetchAllDecks = async () => {
+    try {
+      const standardDecksRes = await axios.get('http://localhost:5000/api/decks/standard');
+      setStandardDecks(Array.isArray(standardDecksRes.data) ? standardDecksRes.data : []);
 
-        // 2. If the user is authenticated, fetch their private decks
-        if (isAuthenticated) {
-          const token = localStorage.getItem('token');
-          const config = {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          };
-          const myDecksRes = await axios.get('http://localhost:5000/api/decks/mine', config);
-          setMyDecks(Array.isArray(myDecksRes.data) ? myDecksRes.data : []);
-        } else {
-          // Ensure 'My Decks' is empty for guest users
-          setMyDecks([]);
-        }
+      if (isAuthenticated) {
+        const token = localStorage.getItem('token');
+        const config = { headers: { Authorization: `Bearer ${token}` } };
+        const myDecksRes = await axios.get('http://localhost:5000/api/decks/mine', config);
+        setMyDecks(Array.isArray(myDecksRes.data) ? myDecksRes.data : []);
+      } else {
+        setMyDecks([]);
+      }
+    } catch (error) {
+      console.error('Error fetching decks:', error);
+      setMyDecks([]);
+      setStandardDecks([]);
+    }
+  };
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+
+    if (!trimmed) {
+      setIsSearching(false);
+      fetchAllDecks();
+      return;
+    }
+
+    setIsSearching(true);
+    const handle = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const config = token
+          ? { headers: { Authorization: `Bearer ${token}` } }
+          : {};
+        const res = await axios.get(
+          `http://localhost:5000/api/decks/search?q=${encodeURIComponent(trimmed)}`,
+          config
+        );
+        setMyDecks(Array.isArray(res.data?.mine) ? res.data.mine : []);
+        setStandardDecks(Array.isArray(res.data?.standard) ? res.data.standard : []);
       } catch (error) {
-        console.error('Error fetching decks:', error);
-        // In case of error (e.g., API is down), reset both deck lists
-        setMyDecks([]); 
+        console.error('Error searching decks:', error);
+        setMyDecks([]);
         setStandardDecks([]);
       }
-    };
+    }, 300);
 
-    fetchDecks();
-  }, [isAuthenticated]); // Re-fetch if auth status changes (though not expected in this component's lifecycle)
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, isAuthenticated]);
 
   const handleCreateDeck = async (e) => {
     e.preventDefault();
@@ -77,8 +100,27 @@ const Dashboard = () => {
     <div className={styles.dashboardContainer}>
       <h1 className={styles.title}>Dashboard</h1>
 
+      <div className={styles.searchRow}>
+        <input
+          type="search"
+          placeholder="Caută pachete după titlu, descriere sau tag..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className={styles.searchInput}
+        />
+        {isSearching && (
+          <button
+            type="button"
+            className={styles.clearSearchButton}
+            onClick={() => setSearchQuery('')}
+          >
+            Șterge
+          </button>
+        )}
+      </div>
+
       {/* Conditionally render the create deck form only for authenticated users */}
-      {isAuthenticated && (
+      {isAuthenticated && !isSearching && (
         <section className={styles.createDeckSection}>
           <h2 className={styles.sectionTitle}>Create New Deck</h2>
           <form onSubmit={handleCreateDeck} className={styles.createDeckForm}>

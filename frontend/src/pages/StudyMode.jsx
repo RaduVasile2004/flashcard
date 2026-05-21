@@ -1,8 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import styles from './StudyMode.module.css';
+
+const formatDuration = (ms) => {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
 
 const StudyMode = () => {
   const { deckId } = useParams();
@@ -12,6 +19,13 @@ const StudyMode = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sessionSummary, setSessionSummary] = useState(null);
+  const [sessionPosting, setSessionPosting] = useState(false);
+
+  const sessionStartedAtRef = useRef(null);
+  const cardStartedAtRef = useRef(null);
+  const reviewsRef = useRef([]);
+  const sessionPostedRef = useRef(false);
 
   useEffect(() => {
     const fetchCardsToReview = async () => {
@@ -29,6 +43,11 @@ const StudyMode = () => {
         };
         const res = await axios.get(`http://localhost:5000/api/flashcards/${deckId}/review`, config);
         setCardsToReview(res.data);
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          const now = Date.now();
+          sessionStartedAtRef.current = now;
+          cardStartedAtRef.current = now;
+        }
       } catch (error) {
         console.error('Error fetching cards for review:', error);
       } finally {
@@ -39,13 +58,55 @@ const StudyMode = () => {
     fetchCardsToReview();
   }, [deckId, navigate]);
 
+  const postSession = async () => {
+    if (sessionPostedRef.current) return;
+    if (reviewsRef.current.length === 0) return;
+    sessionPostedRef.current = true;
+    setSessionPosting(true);
+
+    const token = localStorage.getItem('token');
+    const payload = {
+      deckId,
+      startedAt: new Date(sessionStartedAtRef.current).toISOString(),
+      endedAt: new Date().toISOString(),
+      reviews: reviewsRef.current,
+    };
+
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.post('http://localhost:5000/api/sessions', payload, config);
+      setSessionSummary(res.data);
+    } catch (error) {
+      console.error('Error saving session:', error);
+      // Fallback: build a local summary so the UI still works
+      const reviews = reviewsRef.current;
+      const correct = reviews.filter(r => r.grade >= 3).length;
+      const avgGrade = reviews.reduce((a, r) => a + r.grade, 0) / reviews.length;
+      setSessionSummary({
+        totals: {
+          count: reviews.length,
+          correct,
+          avgGrade: Number(avgGrade.toFixed(2)),
+          durationMs: Date.now() - sessionStartedAtRef.current,
+        },
+        reviews,
+        _local: true,
+      });
+    } finally {
+      setSessionPosting(false);
+    }
+  };
+
   const handleReview = async (grade) => {
     const token = localStorage.getItem('token');
-    const cardId = cardsToReview[currentIndex]._id;
+    const card = cardsToReview[currentIndex];
+    const cardId = card._id;
 
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
+
+    const msSpent = cardStartedAtRef.current ? Date.now() - cardStartedAtRef.current : 0;
 
     try {
       const config = {
@@ -55,12 +116,21 @@ const StudyMode = () => {
       };
       await axios.post(`http://localhost:5000/api/flashcards/${cardId}/review`, { grade }, config);
 
-      // Move to the next card
+      // Only record locally once the server has accepted the review,
+      // so retries on failure don't double-count.
+      reviewsRef.current.push({ cardId, grade, msSpent });
+
+      const nextIndex = currentIndex + 1;
       setIsFlipped(false);
-      setCurrentIndex(currentIndex + 1);
+      setCurrentIndex(nextIndex);
+
+      if (nextIndex >= cardsToReview.length) {
+        await postSession();
+      } else {
+        cardStartedAtRef.current = Date.now();
+      }
     } catch (error) {
       console.error('Error submitting review:', error);
-      // Optionally, show an error to the user
     }
   };
 
@@ -90,11 +160,57 @@ const StudyMode = () => {
     return <div className={styles.statusMessage}>Loading cards...</div>;
   }
 
-  if (cardsToReview.length === 0 || currentIndex >= cardsToReview.length) {
+  if (cardsToReview.length === 0) {
     return (
       <div className={styles.completionContainer}>
         <h1 className={styles.completionTitle}>Felicitări!</h1>
-        <p className={styles.completionText}>Ai terminat toate cardurile pentru astăzi!</p>
+        <p className={styles.completionText}>Nu ai carduri de revizuit acum.</p>
+        <Link to="/" className={styles.dashboardButton}>
+          Înapoi la Dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  if (currentIndex >= cardsToReview.length) {
+    if (sessionPosting || !sessionSummary) {
+      return <div className={styles.statusMessage}>Se salvează sesiunea...</div>;
+    }
+
+    const t = sessionSummary.totals || {};
+    const accuracy = t.count ? Math.round((t.correct / t.count) * 100) : 0;
+    const tally = { 0: 0, 3: 0, 4: 0, 5: 0 };
+    for (const r of sessionSummary.reviews || []) {
+      if (tally[r.grade] !== undefined) tally[r.grade] += 1;
+    }
+
+    return (
+      <div className={styles.completionContainer}>
+        <h1 className={styles.completionTitle}>Sesiune încheiată!</h1>
+        <div className={styles.summaryGrid}>
+          <div className={styles.summaryStat}>
+            <span className={styles.summaryValue}>{t.count}</span>
+            <span className={styles.summaryLabel}>Carduri</span>
+          </div>
+          <div className={styles.summaryStat}>
+            <span className={styles.summaryValue}>{accuracy}%</span>
+            <span className={styles.summaryLabel}>Acuratețe</span>
+          </div>
+          <div className={styles.summaryStat}>
+            <span className={styles.summaryValue}>{t.avgGrade ?? 0}</span>
+            <span className={styles.summaryLabel}>Notă medie</span>
+          </div>
+          <div className={styles.summaryStat}>
+            <span className={styles.summaryValue}>{formatDuration(t.durationMs || 0)}</span>
+            <span className={styles.summaryLabel}>Durată</span>
+          </div>
+        </div>
+        <div className={styles.tallyRow}>
+          <span className={styles.tallyBadge} data-grade="0">Din nou: {tally[0]}</span>
+          <span className={styles.tallyBadge} data-grade="3">Greu: {tally[3]}</span>
+          <span className={styles.tallyBadge} data-grade="4">Bine: {tally[4]}</span>
+          <span className={styles.tallyBadge} data-grade="5">Ușor: {tally[5]}</span>
+        </div>
         <Link to="/" className={styles.dashboardButton}>
           Înapoi la Dashboard
         </Link>

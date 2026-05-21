@@ -116,6 +116,7 @@ const reviewFlashcard = async (req, res) => {
     } else { // Incorrect response
       repetition = 0;
       interval = 1;
+      card.lapses = (card.lapses || 0) + 1;
     }
 
     // 3. Update the easeFactor
@@ -274,4 +275,142 @@ const importFlashcards = async (req, res) => {
 };
 
 
-module.exports = { createFlashcard, reviewFlashcard, getCardsToReview, getUserStats, importFlashcards };
+// @desc    Update a flashcard's text
+// @route   PUT /api/flashcards/:id
+// @access  Private
+const updateFlashcard = async (req, res) => {
+  const { id } = req.params;
+  const { frontText, backText } = req.body;
+
+  if (typeof frontText !== 'string' && typeof backText !== 'string') {
+    return res.status(400).json({ message: 'Provide frontText and/or backText.' });
+  }
+
+  try {
+    const card = await Flashcard.findById(id);
+    if (!card) {
+      return res.status(404).json({ message: 'Flashcard not found' });
+    }
+
+    const deck = await Deck.findById(card.deckId);
+    if (!deck) {
+      return res.status(404).json({ message: 'Parent deck not found' });
+    }
+
+    if (deck.isStandard) {
+      return res.status(403).json({ message: 'Pachetele publice sunt read-only' });
+    }
+
+    if (!deck.creator || deck.creator.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: 'User not authorized to edit this card' });
+    }
+
+    if (typeof frontText === 'string') {
+      const trimmed = frontText.trim();
+      if (!trimmed) return res.status(400).json({ message: 'frontText cannot be empty.' });
+      card.frontText = trimmed;
+    }
+    if (typeof backText === 'string') {
+      const trimmed = backText.trim();
+      if (!trimmed) return res.status(400).json({ message: 'backText cannot be empty.' });
+      card.backText = trimmed;
+    }
+
+    const updated = await card.save();
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Delete a flashcard
+// @route   DELETE /api/flashcards/:id
+// @access  Private
+const deleteFlashcard = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const card = await Flashcard.findById(id);
+    if (!card) {
+      return res.status(404).json({ message: 'Flashcard not found' });
+    }
+
+    const deck = await Deck.findById(card.deckId);
+    if (!deck) {
+      return res.status(404).json({ message: 'Parent deck not found' });
+    }
+
+    if (deck.isStandard) {
+      return res.status(403).json({ message: 'Pachetele publice sunt read-only' });
+    }
+
+    if (!deck.creator || deck.creator.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: 'User not authorized to delete this card' });
+    }
+
+    await card.deleteOne();
+    res.json({ message: 'Flashcard deleted', id });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get per-card stats for a deck (lapses, leech flag, etc.)
+// @route   GET /api/flashcards/:deckId/cards-stats
+// @access  Private
+const LEECH_THRESHOLD = 4;
+const getDeckCardsStats = async (req, res) => {
+  const { deckId } = req.params;
+
+  try {
+    const deck = await Deck.findById(deckId);
+    if (!deck) {
+      return res.status(404).json({ message: 'Deck not found' });
+    }
+
+    if (!deck.isStandard && deck.creator && deck.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'User not authorized to view stats for this deck' });
+    }
+
+    const cards = await Flashcard.find({ deckId }).select(
+      'frontText backText lapses repetition easeFactor interval nextReviewDate'
+    );
+
+    const items = cards.map((c) => {
+      const lapses = c.lapses || 0;
+      return {
+        _id: c._id,
+        frontText: c.frontText,
+        backText: c.backText,
+        lapses,
+        repetition: c.repetition,
+        easeFactor: c.easeFactor,
+        interval: c.interval,
+        nextReviewDate: c.nextReviewDate,
+        isLeech: lapses >= LEECH_THRESHOLD,
+      };
+    });
+
+    const totals = {
+      total: items.length,
+      leeches: items.filter((i) => i.isLeech).length,
+      totalLapses: items.reduce((sum, i) => sum + i.lapses, 0),
+    };
+
+    res.json({ leechThreshold: LEECH_THRESHOLD, totals, cards: items });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+module.exports = {
+  createFlashcard,
+  reviewFlashcard,
+  getCardsToReview,
+  getUserStats,
+  importFlashcards,
+  deleteFlashcard,
+  updateFlashcard,
+  getDeckCardsStats,
+};

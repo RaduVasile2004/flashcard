@@ -150,6 +150,167 @@
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
+  position: relative;
+}
+
+.deleteButton {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #fff;
+  background-color: #dc3545;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.deleteButton:hover {
+  background-color: #b02a37;
+}
+
+.cardActions {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.cardActions .deleteButton,
+.cardActions .editButton {
+  position: static;
+}
+
+.editButton {
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #fff;
+  background-color: var(--primary-color);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.editButton:hover {
+  opacity: 0.9;
+}
+
+.cardEditBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+}
+
+.cardEditBlock textarea {
+  width: 100%;
+  padding: 10px;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  resize: vertical;
+}
+
+.cardEditBlock textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.editActions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.saveButton {
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #fff;
+  background-color: #22c55e;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.saveButton:hover {
+  background-color: #16a34a;
+}
+
+.cancelButton {
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cancelButton:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-color);
+}
+
+.deckEditBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 600px;
+  margin: 0 auto 1.5rem;
+}
+
+.deckTitleInput {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.deckDescInput {
+  width: 100%;
+  padding: 10px 14px;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  resize: vertical;
+}
+
+.deckTitleInput:focus,
+.deckDescInput:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.editDeckButton {
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--primary-color);
+  background-color: transparent;
+  border: 1px solid var(--primary-color);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.editDeckButton:hover {
+  background-color: var(--primary-color);
+  color: #fff;
 }
 
 .cardItemContent {
@@ -172,4 +333,44 @@
 
 .cardItemSeparator {
   display: none;
+}
+
+.leechSummary {
+  max-width: 600px;
+  margin: 0 auto 1.5rem;
+  padding: 0.75rem 1rem;
+  background-color: rgba(220, 53, 69, 0.08);
+  border: 1px solid rgba(220, 53, 69, 0.35);
+  border-radius: 8px;
+  color: #b02a37;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.cardBadges {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.75rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.leechBadge {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background-color: #dc3545;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.lapseBadge {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
 }

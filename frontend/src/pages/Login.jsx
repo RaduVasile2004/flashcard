@@ -7,10 +7,14 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setNeedsVerification(false);
+    setResendMessage('');
     try {
       const response = await axios.post('http://localhost:5000/api/auth/login', {
         email,
@@ -19,7 +23,23 @@ const Login = () => {
       localStorage.setItem('token', response.data.token);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      const data = err.response?.data;
+      setError(data?.message || 'Login failed');
+      if (data?.needsVerification) {
+        setNeedsVerification(true);
+      }
+    }
+  };
+
+  const handleResend = async () => {
+    try {
+      const res = await axios.post(
+        'http://localhost:5000/api/auth/resend-verification',
+        { email }
+      );
+      setResendMessage(res.data.message || 'If eligible, a new link was sent.');
+    } catch (err) {
+      setResendMessage(err.response?.data?.message || 'Failed to resend.');
     }
   };
 
@@ -51,6 +71,23 @@ const Login = () => {
         <button type="submit" className={styles.submitButton}>
           Login
         </button>
+        <p className={styles.registerLink}>
+          <Link to="/forgot-password">Forgot password?</Link>
+        </p>
+        {needsVerification && (
+          <div style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className={styles.submitButton}
+              onClick={handleResend}
+            >
+              Resend verification email
+            </button>
+            {resendMessage && (
+              <p style={{ marginTop: 8 }}>{resendMessage}</p>
+            )}
+          </div>
+        )}
         <p className={styles.registerLink}>
           Don't have an account? <Link to="/register">Register here</Link>
         </p>

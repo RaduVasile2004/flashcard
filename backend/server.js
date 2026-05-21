@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const authRoutes = require('./routes/authRoutes');
 const deckRoutes = require('./routes/deckRoutes');
 const flashcardRoutes = require('./routes/flashcardRoutes');
+const sessionRoutes = require('./routes/sessionRoutes');
 const { seedStandardDecks } = require('./controllers/deckController');
 
 dotenv.config();
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/decks', deckRoutes);
 app.use('/api/flashcards', flashcardRoutes);
+app.use('/api/sessions', sessionRoutes);
 
 const PORT = process.env.PORT || 5000;
 

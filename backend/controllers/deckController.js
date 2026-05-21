@@ -47,40 +47,81 @@ const getStandardDecks = async (req, res) => {
   }
 };
 
+// Escape regex special characters in user input
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// @desc    Search decks by title / description / tags
+// @route   GET /api/decks/search?q=...
+// @access  Public (auth optional — includes user's own decks when authenticated)
+const searchDecks = async (req, res) => {
+  const q = (req.query.q || '').trim();
+
+  if (!q) {
+    return res.json({ mine: [], standard: [] });
+  }
+
+  const regex = new RegExp(escapeRegex(q), 'i');
+  const textFilter = {
+    $or: [{ title: regex }, { description: regex }, { tags: regex }],
+  };
+
+  try {
+    const standardPromise = Deck.find({
+      $and: [{ isStandard: true }, textFilter],
+    }).limit(50);
+
+    const minePromise = req.user
+      ? Deck.find({
+          $and: [
+            { creator: req.user._id, isStandard: { $ne: true } },
+            textFilter,
+          ],
+        }).limit(50)
+      : Promise.resolve([]);
+
+    const [standard, mine] = await Promise.all([standardPromise, minePromise]);
+    res.json({ mine, standard });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    Get deck by ID
 // @route   GET /api/decks/:id
-// @access  Private
+// @access  Private (standard decks viewable by any authed user; user decks only by their creator)
 const getDeckById = async (req, res) => {
   try {
     const deck = await Deck.findById(req.params.id).populate('flashcards');
 
-    if (deck) {
-      // Optional: Check if the user is authorized to see this deck
-      // For now, we assume if they have the ID, they can see it,
-      // but the route is protected, so they must be logged in.
-      res.json(deck);
-    } else {
-      res.status(404).json({ message: 'Deck not found' });
+    if (!deck) {
+      return res.status(404).json({ message: 'Deck not found' });
     }
+
+    if (
+      !deck.isStandard &&
+      (!deck.creator || deck.creator.toString() !== req.user._id.toString())
+    ) {
+      return res.status(403).json({ message: 'Not authorized to view this deck' });
+    }
+
+    res.json(deck);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
 /**
- * @desc Seeds the database with standard decks. This is an idempotent operation.
- * It first deletes all existing standard decks and their flashcards, then creates new ones.
- * This function is designed to be callable from server startup.
+ * @desc Seeds the database with standard decks. Idempotent and non-destructive:
+ * if any standard decks already exist, this is a no-op so that user review
+ * progress on standard cards (SM-2 fields, lapses, etc.) is preserved across
+ * server restarts.
  */
 const seedStandardDecks = async () => {
   try {
-    // Clean up old standard decks and their flashcards to ensure a fresh start
-    const oldStandardDecks = await Deck.find({ isStandard: true });
-    if (oldStandardDecks.length > 0) {
-      const oldDeckIds = oldStandardDecks.map(d => d._id);
-      await Flashcard.deleteMany({ deckId: { $in: oldDeckIds } });
-      await Deck.deleteMany({ isStandard: true });
-      console.log('Cleaned up old standard decks and their flashcards.');
+    const existingCount = await Deck.countDocuments({ isStandard: true });
+    if (existingCount > 0) {
+      console.log(`Standard decks already present (${existingCount}). Skipping seed.`);
+      return;
     }
 
     // Create a new standard deck for 'Capitalele Europei'
@@ -119,6 +160,44 @@ const seedStandardDecksRoute = async (req, res) => {
 };
 
 
+// @desc    Update a deck's metadata
+// @route   PUT /api/decks/:id
+// @access  Private
+const updateDeck = async (req, res) => {
+  const { title, description, tags } = req.body;
+
+  try {
+    const deck = await Deck.findById(req.params.id);
+    if (!deck) {
+      return res.status(404).json({ message: 'Deck not found' });
+    }
+
+    if (deck.isStandard) {
+      return res.status(403).json({ message: 'Pachetele publice sunt read-only' });
+    }
+    if (!deck.creator || deck.creator.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: 'User not authorized to edit this deck' });
+    }
+
+    if (typeof title === 'string') {
+      const trimmed = title.trim();
+      if (!trimmed) return res.status(400).json({ message: 'Title cannot be empty.' });
+      deck.title = trimmed;
+    }
+    if (typeof description === 'string') {
+      deck.description = description.trim();
+    }
+    if (Array.isArray(tags)) {
+      deck.tags = tags.map(t => String(t).trim()).filter(Boolean);
+    }
+
+    const updated = await deck.save();
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createDeck,
   getUserDecks,
@@ -126,4 +205,6 @@ module.exports = {
   getDeckById,
   seedStandardDecks,
   seedStandardDecksRoute,
+  searchDecks,
+  updateDeck,
 };

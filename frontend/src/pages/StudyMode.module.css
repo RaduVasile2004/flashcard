@@ -168,3 +168,57 @@
 .dashboardButton:hover {
   opacity: 0.9;
 }
+
+/* Session summary */
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  max-width: 640px;
+  margin: 1.5rem auto;
+}
+
+.summaryStat {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.summaryValue {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.summaryLabel {
+  margin-top: 0.25rem;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.tallyRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1rem auto 2rem;
+}
+
+.tallyBadge {
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #fff;
+  border-radius: 999px;
+  background-color: #6b7280;
+}
+
+.tallyBadge[data-grade="0"] { background-color: #ef4444; }
+.tallyBadge[data-grade="3"] { background-color: #f97316; }
+.tallyBadge[data-grade="4"] { background-color: #3b82f6; }
+.tallyBadge[data-grade="5"] { background-color: #22c55e; }
